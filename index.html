@@ -17,7 +17,31 @@
 </head>
 <body>
   <h1>Crypto DCA Backtest Tool (Top 100 Coins)</h1>
-  <label>Coin: <select id="coin"></select></label>
+
+  <label>Coin:
+    <select id="coin">
+      <option value="bitcoin">Bitcoin</option>
+      <option value="ethereum">Ethereum</option>
+      <option value="solana">Solana</option>
+      <option value="ripple">XRP</option>
+      <option value="cardano">Cardano</option>
+      <option value="dogecoin">Dogecoin</option>
+      <option value="avalanche-2">Avalanche</option>
+      <option value="polkadot">Polkadot</option>
+      <option value="tron">Tron</option>
+      <option value="chainlink">Chainlink</option>
+      <option value="litecoin">Litecoin</option>
+      <option value="uniswap">Uniswap</option>
+      <option value="stellar">Stellar</option>
+      <option value="internet-computer">Internet Computer</option>
+      <option value="aptos">Aptos</option>
+      <option value="arbitrum">Arbitrum</option>
+      <option value="the-graph">The Graph</option>
+      <option value="vechain">VeChain</option>
+      <option value="render-token">Render</option>
+      <option value="immutable-x">ImmutableX</option>
+    </select>
+  </label>
   <label>Hebel: <input type="number" id="leverage" value="2" step="0.1"></label>
   <label>Initiale Margin (USD): <input type="number" id="initialMargin" value="1000"></label>
   <label>Startdatum: <input type="date" id="startDate" value="2024-01-01"></label>
@@ -44,7 +68,118 @@
   </table>
 
 <script>
-// Code aus vorheriger Version (gekürzt)
+let chartInstance = null;
+
+async function runBacktest() {
+  const coin = document.getElementById("coin").value;
+  const leverage = parseFloat(document.getElementById("leverage").value);
+  const initialMargin = parseFloat(document.getElementById("initialMargin").value);
+  const startDate = document.getElementById("startDate").value;
+  const dcaInput = parseFloat(document.getElementById("dcaThreshold").value);
+  const dcaThreshold = dcaInput / 100;
+
+  const url = `https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=365&interval=daily`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!data.prices || data.prices.length === 0) {
+    alert("Keine Preisdaten gefunden.");
+    return;
+  }
+
+  const prices = data.prices
+    .map(p => ({ date: new Date(p[0]).toISOString().split("T")[0], price: p[1] }))
+    .filter(p => p.date >= startDate);
+
+  const maxDCA = 3;
+  let lastBuyPrice = prices[0].price;
+  let totalInvest = initialMargin;
+  let totalCoin = (initialMargin * leverage) / lastBuyPrice;
+
+  let tbody = document.querySelector("#dcaTable tbody");
+  tbody.innerHTML = "";
+
+  let avgPrice = lastBuyPrice;
+  let liqPrice = avgPrice * (1 - 1 / leverage);
+
+  tbody.innerHTML += `<tr class='highlight'><td>Einstieg</td><td>${prices[0].date}</td><td>${lastBuyPrice.toFixed(2)}</td><td>${initialMargin}</td><td>${(initialMargin*leverage/lastBuyPrice).toFixed(4)}</td><td>${avgPrice.toFixed(2)}</td><td>${liqPrice.toFixed(2)}</td><td>-</td></tr>`;
+
+  let dcaCount = 0;
+  let dcaLogText = "<strong>📅 DCA-Zeitpunkte:</strong><br>";
+  const dcaMarkers = [{ date: prices[0].date, label: "Einstieg" }];
+
+  for (let i = 1; i < prices.length; i++) {
+    const p = prices[i];
+    const triggerPrice = lastBuyPrice * (1 - dcaThreshold);
+    if (p.price <= triggerPrice && dcaCount < maxDCA) {
+      const invest = initialMargin;
+      const coinAmt = (invest * leverage) / p.price;
+      totalInvest += invest;
+      totalCoin += coinAmt;
+      avgPrice = (totalInvest * leverage) / totalCoin;
+      liqPrice = avgPrice * (1 - 1 / leverage);
+      dcaCount++;
+
+      tbody.innerHTML += `<tr><td>DCA ${dcaCount}</td><td>${p.date}</td><td>${p.price.toFixed(2)}</td><td>${invest}</td><td>${coinAmt.toFixed(4)}</td><td>${avgPrice.toFixed(2)}</td><td>${liqPrice.toFixed(2)}</td><td>⟶ Preis fiel unter ${triggerPrice.toFixed(2)} USD</td></tr>`;
+
+      dcaLogText += `${dcaCount}. DCA am ${p.date} (Preis fiel unter ${triggerPrice.toFixed(2)} USD)<br>`;
+      dcaMarkers.push({ date: p.date, label: `DCA ${dcaCount}` });
+      lastBuyPrice = p.price;
+    }
+  }
+
+  const finalValue = prices[prices.length - 1].price * totalCoin;
+  const pnl = finalValue - (totalInvest * leverage);
+  const liquidated = prices.some(p => p.price <= liqPrice);
+
+  document.getElementById("liqBox").innerHTML = `📊 Coin: <strong>${coin.toUpperCase()}</strong><br>
+    Letzter Kurs: ${prices[prices.length-1].price.toFixed(2)} USD<br>
+    Ø Einstiegspreis: ${avgPrice.toFixed(2)} USD<br>
+    Liquidationspreis: ${liqPrice.toFixed(2)} USD<br>
+    Gesamtinvestition: ${totalInvest} USD<br>
+    Endwert: ${finalValue.toFixed(2)} USD<br>
+    Realisierter PnL: ${pnl.toFixed(2)} USD<br>
+    ⚠️ Liquidiert: <strong>${liquidated ? 'JA' : 'NEIN'}</strong>`;
+
+  document.getElementById("dcaLog").innerHTML = dcaCount > 0 ? dcaLogText : "<em>Keine DCA-Stufen ausgelöst.</em>";
+
+  const ctx = document.getElementById("priceChart").getContext("2d");
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: prices.map(p => p.date),
+      datasets: [{
+        label: "Preis (USD)",
+        data: prices.map(p => p.price),
+        borderColor: "#00bcd4",
+        pointRadius: prices.map(p => dcaMarkers.find(m => m.date === p.date) ? 5 : 0),
+        pointBackgroundColor: prices.map(p => dcaMarkers.find(m => m.date === p.date) ? "#ff5722" : "transparent"),
+        fill: false,
+        tension: 0.1
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { display: true },
+        y: { display: true, beginAtZero: false }
+      },
+      plugins: {
+        legend: { display: true },
+        tooltip: {
+          callbacks: {
+            label: (context) => {
+              const label = dcaMarkers.find(m => m.date === context.label)?.label;
+              return label ? `${label}: ${context.formattedValue} USD` : `${context.formattedValue} USD`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
 </script>
 </body>
 </html>
