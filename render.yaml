@@ -1,0 +1,4 @@
+type: static
+name: dca-backtest-tool
+buildCommand: null
+staticPublishPath: .

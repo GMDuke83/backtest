@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>DCA Backtest Tool</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #111; color: #f0f0f0; margin: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 10px; border: 1px solid #444; text-align: center; }
+    th { background-color: #222; }
+    input, select { background: #222; color: #f0f0f0; border: 1px solid #444; padding: 5px; margin-right: 10px; }
+    .highlight { background-color: #333; font-weight: bold; }
+    .result-box { margin-top: 20px; padding: 10px; background: #222; border: 1px solid #444; }
+    .dca-log { margin-top: 10px; font-size: 14px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>Crypto DCA Backtest Tool (Top 100 Coins)</h1>
+  <label>Coin: <select id="coin"></select></label>
+  <label>Hebel: <input type="number" id="leverage" value="2" step="0.1"></label>
+  <label>Initiale Margin (USD): <input type="number" id="initialMargin" value="1000"></label>
+  <label>Startdatum: <input type="date" id="startDate" value="2024-01-01"></label>
+  <label>DCA-Schwelle (%): <input type="number" id="dcaThreshold" value="30" step="1"></label>
+  <button onclick="runBacktest()">Backtest starten</button>
+
+  <canvas id="priceChart" width="1000" height="400"></canvas>
+  <div class="result-box" id="liqBox"></div>
+  <div class="result-box dca-log" id="dcaLog"></div>
+  <table id="dcaTable">
+    <thead>
+      <tr>
+        <th>Stufe</th>
+        <th>Datum</th>
+        <th>Kurs (USD)</th>
+        <th>Investition (USD)</th>
+        <th>Gekaufte Coin</th>
+        <th>Ø Einstiegspreis</th>
+        <th>Liquidationspreis</th>
+        <th>DCA-Auslöser</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+// Code aus vorheriger Version (gekürzt)
+</script>
+</body>
+</html>
