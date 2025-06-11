@@ -1,76 +1,5 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <title>DCA Backtest Tool</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; background: #111; color: #f0f0f0; margin: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { padding: 10px; border: 1px solid #444; text-align: center; }
-    th { background-color: #222; }
-    input, select { background: #222; color: #f0f0f0; border: 1px solid #444; padding: 5px; margin-right: 10px; }
-    .highlight { background-color: #333; font-weight: bold; }
-    .result-box { margin-top: 20px; padding: 10px; background: #222; border: 1px solid #444; }
-    .dca-log { margin-top: 10px; font-size: 14px; line-height: 1.5; }
-  </style>
-</head>
-<body>
-  <h1>Crypto DCA Backtest Tool (Top 100 Coins)</h1>
-
-  <label>Coin:
-    <select id="coin">
-      <option value="bitcoin">Bitcoin</option>
-      <option value="ethereum">Ethereum</option>
-      <option value="solana">Solana</option>
-      <option value="ripple">XRP</option>
-      <option value="cardano">Cardano</option>
-      <option value="dogecoin">Dogecoin</option>
-      <option value="avalanche-2">Avalanche</option>
-      <option value="polkadot">Polkadot</option>
-      <option value="tron">Tron</option>
-      <option value="chainlink">Chainlink</option>
-      <option value="litecoin">Litecoin</option>
-      <option value="uniswap">Uniswap</option>
-      <option value="stellar">Stellar</option>
-      <option value="internet-computer">Internet Computer</option>
-      <option value="aptos">Aptos</option>
-      <option value="arbitrum">Arbitrum</option>
-      <option value="the-graph">The Graph</option>
-      <option value="vechain">VeChain</option>
-      <option value="render-token">Render</option>
-      <option value="immutable-x">ImmutableX</option>
-    </select>
-  </label>
-  <label>Hebel: <input type="number" id="leverage" value="2" step="0.1"></label>
-  <label>Initiale Margin (USD): <input type="number" id="initialMargin" value="1000"></label>
-  <label>Startdatum: <input type="date" id="startDate" value="2024-01-01"></label>
-  <label>DCA-Schwelle (%): <input type="number" id="dcaThreshold" value="30" step="1"></label>
-  <button onclick="runBacktest()">Backtest starten</button>
-
-  <canvas id="priceChart" width="1000" height="400"></canvas>
-  <div class="result-box" id="liqBox"></div>
-  <div class="result-box dca-log" id="dcaLog"></div>
-  <table id="dcaTable">
-    <thead>
-      <tr>
-        <th>Stufe</th>
-        <th>Datum</th>
-        <th>Kurs (USD)</th>
-        <th>Investition (USD)</th>
-        <th>Gekaufte Coin</th>
-        <th>Ø Einstiegspreis</th>
-        <th>Liquidationspreis</th>
-        <th>DCA-Auslöser</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-<script>
-let chartInstance = null;
-
-async function runBacktest() {
+// Sicherstellen, dass Funktion im globalen Scope landet
+window.runBacktest = async function runBacktest() {
   const coin = document.getElementById("coin").value;
   const leverage = parseFloat(document.getElementById("leverage").value);
   const initialMargin = parseFloat(document.getElementById("initialMargin").value);
@@ -79,7 +8,6 @@ async function runBacktest() {
   const dcaThreshold = dcaInput / 100;
 
   const url = `https://api.coingecko.com/api/v3/coins/${coin}/market_chart?vs_currency=usd&days=365&interval=daily`;
-
   const res = await fetch(url);
   const data = await res.json();
   if (!data.prices || data.prices.length === 0) {
@@ -100,7 +28,7 @@ async function runBacktest() {
   tbody.innerHTML = "";
 
   let avgPrice = lastBuyPrice;
-  let liqPrice = avgPrice * (1 - 1 / leverage);
+  let liqPrice = avgPrice - (avgPrice / leverage);
 
   tbody.innerHTML += `<tr class='highlight'><td>Einstieg</td><td>${prices[0].date}</td><td>${lastBuyPrice.toFixed(2)}</td><td>${initialMargin}</td><td>${(initialMargin*leverage/lastBuyPrice).toFixed(4)}</td><td>${avgPrice.toFixed(2)}</td><td>${liqPrice.toFixed(2)}</td><td>-</td></tr>`;
 
@@ -117,7 +45,7 @@ async function runBacktest() {
       totalInvest += invest;
       totalCoin += coinAmt;
       avgPrice = (totalInvest * leverage) / totalCoin;
-      liqPrice = avgPrice * (1 - 1 / leverage);
+      liqPrice = avgPrice - (avgPrice / leverage);
       dcaCount++;
 
       tbody.innerHTML += `<tr><td>DCA ${dcaCount}</td><td>${p.date}</td><td>${p.price.toFixed(2)}</td><td>${invest}</td><td>${coinAmt.toFixed(4)}</td><td>${avgPrice.toFixed(2)}</td><td>${liqPrice.toFixed(2)}</td><td>⟶ Preis fiel unter ${triggerPrice.toFixed(2)} USD</td></tr>`;
@@ -144,21 +72,39 @@ async function runBacktest() {
   document.getElementById("dcaLog").innerHTML = dcaCount > 0 ? dcaLogText : "<em>Keine DCA-Stufen ausgelöst.</em>";
 
   const ctx = document.getElementById("priceChart").getContext("2d");
-  if (chartInstance) chartInstance.destroy();
+  if (window.chartInstance) chartInstance.destroy();
 
-  chartInstance = new Chart(ctx, {
+  window.chartInstance = new Chart(ctx, {
     type: "line",
     data: {
       labels: prices.map(p => p.date),
-      datasets: [{
-        label: "Preis (USD)",
-        data: prices.map(p => p.price),
-        borderColor: "#00bcd4",
-        pointRadius: prices.map(p => dcaMarkers.find(m => m.date === p.date) ? 5 : 0),
-        pointBackgroundColor: prices.map(p => dcaMarkers.find(m => m.date === p.date) ? "#ff5722" : "transparent"),
-        fill: false,
-        tension: 0.1
-      }]
+      datasets: [
+        {
+          label: "Preis (USD)",
+          data: prices.map(p => p.price),
+          borderColor: "#00bcd4",
+          pointRadius: prices.map(p => dcaMarkers.find(m => m.date === p.date) ? 5 : 0),
+          pointBackgroundColor: prices.map(p => dcaMarkers.find(m => m.date === p.date) ? "#ff5722" : "transparent"),
+          fill: false,
+          tension: 0.1
+        },
+        {
+          label: "Break-even",
+          data: prices.map(() => avgPrice),
+          borderColor: "#4caf50",
+          borderDash: [5, 5],
+          fill: false,
+          pointRadius: 0
+        },
+        {
+          label: "Liquidation",
+          data: prices.map(() => liqPrice),
+          borderColor: "#f44336",
+          borderDash: [5, 5],
+          fill: false,
+          pointRadius: 0
+        }
+      ]
     },
     options: {
       responsive: true,
@@ -179,7 +125,11 @@ async function runBacktest() {
       }
     }
   });
+};
+
+// Event-Handler hinzufügen, falls noch nicht geschehen
+const btn = document.getElementById("startBtn");
+if (btn) {
+  btn.addEventListener("click", window.runBacktest);
 }
-</script>
-</body>
-</html>
+
